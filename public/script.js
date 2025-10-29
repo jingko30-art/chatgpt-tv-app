@@ -97,11 +97,23 @@ async function askGPT(prompt) {
 }
 
 // 🔊 음성 출력
-function speak(text) {
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "ko-KR";
-  utter.rate = 1.0;
-  speechSynthesis.speak(utter);
+async function speak(text) {
+  try {
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!res.ok) throw new Error("TTS 요청 실패");
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.play();
+  } catch (err) {
+    console.error("TTS 오류:", err);
+  }
 }
 
 // 오류 복구
