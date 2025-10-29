@@ -10,7 +10,7 @@ export default async function handler(request) {
 
     // 허용 보이스 화이트리스트 (안전하게)
     const allowedVoices = new Set(["verse","alloy"]);
-    const chosen = allowedVoices.has(String(voice)) ? String(voice) : "verse";
+    const chosen = allowedVoices.has(String(voice)) ? String(voice) : "alloy";
 
     const tts = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
