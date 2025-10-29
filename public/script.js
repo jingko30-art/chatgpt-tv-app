@@ -5,10 +5,9 @@ const chatDiv = document.getElementById("chat");
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 recognition.lang = "ko-KR";
 recognition.continuous = true;
-recognition.interimResults = false;
+recognition.interimResults = true; // interim 사용해서 최종만 처리
 
 let lastRequestTime = 0;
-let lastTranscript = "";
 let isProcessing = false;
 
 // 🎧 음성 인식 시작
@@ -18,41 +17,40 @@ recognition.onstart = () => {
 
 // 🎙️ 음성 결과 처리
 recognition.onresult = async (event) => {
-  const text = event.results[event.resultIndex][0].transcript.trim();
-  if (!text || text === lastTranscript) return;
-  lastTranscript = text;
+  const result = event.results[event.resultIndex];
+  // 👇 interim(중간 결과)는 무시하고 최종 결과만 처리
+  if (!result.isFinal) return;
 
-  // 사용자가 말을 멈춘 뒤 1.5초 동안 추가 입력이 없을 때 GPT 호출
-  clearTimeout(window._speechTimeout);
-  window._speechTimeout = setTimeout(async () => {
-    const now = Date.now();
-    if (now - lastRequestTime < 6000) return; // 6초 쿨다운
-    lastRequestTime = now;
+  const text = result[0].transcript.trim();
+  if (!text) return;
 
-    chatDiv.innerHTML += `<p><b>🗣️ 나:</b> ${text}</p>`;
-    statusDiv.innerText = "💬 GPT에게 묻는 중...";
-    isProcessing = true;
+  const now = Date.now();
+  if (now - lastRequestTime < 6000 || isProcessing) return; // 6초 쿨다운
+  lastRequestTime = now;
 
-    try {
-      const reply = await askGPT(text);
-      chatDiv.innerHTML += `<p><b>🤖 GPT:</b> ${reply}</p>`;
-      speak(reply);
-      statusDiv.innerText = "🎧 계속 듣는 중...";
-    } catch (err) {
-      chatDiv.innerHTML += `<p><b>⚠️ 오류:</b> ${err.message}</p>`;
-      statusDiv.innerText = "⚠️ 오류 발생... 다시 시도 중";
-    } finally {
-      isProcessing = false;
-    }
-  }, 1500);
+  chatDiv.innerHTML += `<p><b>🗣️ 나:</b> ${text}</p>`;
+  statusDiv.innerText = "💬 GPT에게 묻는 중...";
+  isProcessing = true;
+
+  try {
+    const reply = await askGPT(text);
+    chatDiv.innerHTML += `<p><b>🤖 GPT:</b> ${reply}</p>`;
+    speak(reply);
+    statusDiv.innerText = "🎧 계속 듣는 중...";
+  } catch (err) {
+    chatDiv.innerHTML += `<p><b>⚠️ 오류:</b> ${err.message}</p>`;
+    statusDiv.innerText = "⚠️ 오류 발생... 다시 시도 중";
+  } finally {
+    isProcessing = false;
+  }
 };
 
-// 🔁 인식 중단 시 자동 재시작
+// 🔁 인식 종료 시 자동 재시작
 recognition.onend = () => {
   setTimeout(() => recognition.start(), 1000);
 };
 
-// ⚠️ 오류 시 자동 복구
+// ⚠️ 오류 시 복구
 recognition.onerror = (e) => {
   console.warn("음성 인식 오류:", e.error);
   statusDiv.innerText = "⚠️ 오류 발생. 복구 중...";
@@ -83,6 +81,6 @@ function speak(text) {
   speechSynthesis.speak(utter);
 }
 
-// 🚀 페이지 로드 시 자동 시작
+// 🚀 자동 시작
 recognition.start();
 statusDiv.innerText = "🎧 대기 중...";
