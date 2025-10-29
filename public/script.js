@@ -106,11 +106,12 @@ async function speak(text) {
     });
 
     if (!res.ok) throw new Error("TTS 요청 실패");
-
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
-    audio.play();
+
+    // ✅ 사용자 입력 이벤트 안에서만 play() 허용
+    audio.oncanplaythrough = () => audio.play().catch(err => console.warn("재생 실패:", err));
   } catch (err) {
     console.error("TTS 오류:", err);
   }
