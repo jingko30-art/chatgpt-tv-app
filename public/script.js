@@ -1,13 +1,13 @@
-// 🎤 ChatGPT TV Assistant Script
+// 🎤 ChatGPT TV Assistant Script (Free API Safe Version)
 const statusDiv = document.getElementById("status");
 const chatDiv = document.getElementById("chat");
 
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 recognition.lang = "ko-KR";
 recognition.continuous = true;
-recognition.interimResults = true; // interim 사용해서 최종만 처리
+recognition.interimResults = true;
 
-let lastRequestTime = 0;
+let queue = [];
 let isProcessing = false;
 
 // 🎧 음성 인식 시작
@@ -15,22 +15,26 @@ recognition.onstart = () => {
   statusDiv.innerText = "🎧 듣는 중...";
 };
 
-// 🎙️ 음성 결과 처리
-recognition.onresult = async (event) => {
+// 🎙️ 인식 결과 (최종 문장만 큐에 추가)
+recognition.onresult = (event) => {
   const result = event.results[event.resultIndex];
-  // 👇 interim(중간 결과)는 무시하고 최종 결과만 처리
   if (!result.isFinal) return;
 
   const text = result[0].transcript.trim();
   if (!text) return;
 
-  const now = Date.now();
-  if (now - lastRequestTime < 6000 || isProcessing) return; // 6초 쿨다운
-  lastRequestTime = now;
+  queue.push(text);
+  processQueue();
+};
 
+// ⚙️ GPT 요청 큐 순차 처리
+async function processQueue() {
+  if (isProcessing || queue.length === 0) return;
+  isProcessing = true;
+
+  const text = queue.shift();
   chatDiv.innerHTML += `<p><b>🗣️ 나:</b> ${text}</p>`;
   statusDiv.innerText = "💬 GPT에게 묻는 중...";
-  isProcessing = true;
 
   try {
     const reply = await askGPT(text);
@@ -42,22 +46,12 @@ recognition.onresult = async (event) => {
     statusDiv.innerText = "⚠️ 오류 발생... 다시 시도 중";
   } finally {
     isProcessing = false;
+    // 10초 간격으로 다음 요청 (무료 계정 안정화)
+    setTimeout(processQueue, 10000);
   }
-};
+}
 
-// 🔁 인식 종료 시 자동 재시작
-recognition.onend = () => {
-  setTimeout(() => recognition.start(), 1000);
-};
-
-// ⚠️ 오류 시 복구
-recognition.onerror = (e) => {
-  console.warn("음성 인식 오류:", e.error);
-  statusDiv.innerText = "⚠️ 오류 발생. 복구 중...";
-  setTimeout(() => recognition.start(), 2000);
-};
-
-// 💬 GPT 요청 (Vercel 프록시 API 사용)
+// 💬 GPT 호출
 async function askGPT(prompt) {
   const res = await fetch("/api/chatgpt", {
     method: "POST",
@@ -66,6 +60,7 @@ async function askGPT(prompt) {
   });
 
   if (!res.ok) {
+    if (res.status === 429) throw new Error("요청이 너무 많아. 잠시 후 다시 시도해줘.");
     throw new Error(`GPT 요청 실패 (${res.status})`);
   }
 
@@ -81,6 +76,18 @@ function speak(text) {
   speechSynthesis.speak(utter);
 }
 
-// 🚀 자동 시작
+// 🔁 인식 종료 시 자동 재시작
+recognition.onend = () => {
+  setTimeout(() => recognition.start(), 1000);
+};
+
+// ⚠️ 오류 시 자동 복구
+recognition.onerror = (e) => {
+  console.warn("음성 인식 오류:", e.error);
+  statusDiv.innerText = "⚠️ 오류 발생. 복구 중...";
+  setTimeout(() => recognition.start(), 2000);
+};
+
+// 🚀 페이지 로드 시 시작
 recognition.start();
 statusDiv.innerText = "🎧 대기 중...";
