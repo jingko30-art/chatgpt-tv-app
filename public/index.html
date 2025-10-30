@@ -1,15 +1,54 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TV ChatGPT Assistant</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>ChatGPT TV Assistant</title>
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <h1>🎤 ChatGPT TV Assistant (오정욱개발)</h1>
-  <div id="status">🎧 대기 중...</div>
-  <div id="chat"></div>
-  <script src="script.js"></script>
+  <header class="topbar">
+    <h1>ChatGPT 음성 비서</h1>
+    <div class="controls">
+      <button id="startBtn" class="btn">🎙️ 말하기 시작</button>
+      <label class="select-wrap">
+        <span>목소리</span>
+        <select id="voiceSelect">
+          <option value="alloy">alloy (여성 추천)</option>
+          <option value="verse">verse (중성)</option>
+        </select>
+      </label>
+      <div class="font-ctrl">
+        <button id="fontDown" class="btn2" title="작게">A−</button>
+        <button id="fontUp" class="btn2" title="크게">A＋</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <p id="status" class="status">🎧 대기 중...</p>
+    <div id="chat" class="chat"></div>
+  </main>
+
+  <!-- 키보드/권한 안내 오버레이 -->
+  <div id="overlay" class="overlay">
+    <div class="overlay-card">
+      <h2>마이크 사용 허용이 필요해요</h2>
+      <p>아래 중 하나를 해줘:</p>
+      <ul>
+        <li>🔘 <b>말하기 시작</b> 버튼 클릭</li>
+        <li>⌨️ 키보드에서 <b>V</b>를 누르기 (한 번 누르면 항상 듣기 시작)</li>
+      </ul>
+      <p class="small">팁: <b>P</b>를 눌러 <i>누르고 말하기(Push-to-Talk)</i> 모드로 전환 가능.<br/>그 상태에선 <b>V를 누르고 있는 동안</b>에만 인식해.</p>
+    </div>
+  </div>
+
+  <footer class="hint">
+    <p>
+      ⌨️ 단축키: <b>V</b> 시작/허용 • <b>P</b> PTT모드 온/오프 • <b>[</b>/<b>]</b> 또는 <b>A−/A＋</b> 글자 크기
+    </p>
+  </footer>
+
+  <script src="./script.js"></script>
 </body>
 </html>
