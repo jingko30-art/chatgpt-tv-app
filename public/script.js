@@ -1,11 +1,11 @@
-// 🎤 ChatGPT TV Assistant (최신 안정 버전)
-// - 키보드로 말하기(항상 듣기 + PTT모드)
-// - 글자 크기 조절(저장)
-// - 모바일 반응형 UI (CSS 처리)
-// - 대화 기억(localStorage)
+// 🎤 ChatGPT TV Assistant (루프 수정 안정 버전)
+// - 항상 듣기 / PTT 모드 지원
+// - 글자 크기 조절 + 저장
+// - 모바일 대응 UI
+// - 대화 히스토리(localStorage)
 // - 여성 음성(alloy)
-// - 병렬 TTS
-// - 채팅창 고정 + 스크롤
+// - 병렬 TTS + 에코 방지
+// - 루프/중복 인식 완전 차단
 
 // DOM 요소
 const statusDiv = document.getElementById("status");
@@ -62,8 +62,14 @@ let holdingPTT = false;
 let queue = [];
 let isProcessing = false;
 
-// 🎧 시작 버튼 클릭 시 듣기 시작
-startBtn.addEventListener("click", () => startListening());
+// 🎧 시작 버튼 클릭 시 듣기 시작/정지
+startBtn.addEventListener("click", () => {
+  if (isListening) {
+    recognition.stop();
+  } else {
+    startListening();
+  }
+});
 
 // ⌨️ 키보드 제어
 document.addEventListener("keydown", (e) => {
@@ -93,23 +99,26 @@ recognition.onstart = () => {
   startBtn.textContent = "🛑 듣기 중지";
   overlay.style.display = "none";
 };
+
 recognition.onend = () => {
   isListening = false;
   statusDiv.innerText = "⏸️ 멈춤";
   startBtn.textContent = "🎙️ 말하기 시작";
+  // GPT 응답 중일 땐 재시작 금지
   setTimeout(() => {
-    if (!pushToTalkMode) {
+    if (!pushToTalkMode && !isProcessing) {
       try {
         recognition.start();
       } catch {}
     }
   }, 500);
 };
+
 recognition.onerror = (e) => {
   console.warn("음성 인식 오류:", e.error);
   statusDiv.innerText = "⚠️ 오류 발생. 복구 중...";
   setTimeout(() => {
-    if (isListening || !pushToTalkMode) {
+    if ((isListening || !pushToTalkMode) && !isProcessing) {
       try {
         recognition.start();
       } catch {}
@@ -130,17 +139,16 @@ recognition.onresult = (event) => {
   processQueue();
 };
 
-// 🎧 듣기 시작
+// 🎧 듣기 시작 함수
 function startListening() {
+  if (isListening || isProcessing) return;
   try {
     recognition.start();
     overlay.style.display = "none";
-  } catch (e) {}
+  } catch (e) {
+    console.warn("음성인식 시작 실패:", e);
+  }
 }
-startBtn.addEventListener("click", () => {
-  if (isListening) recognition.stop();
-  else startListening();
-});
 
 // 💬 대화 처리 (GPT 요청 + 병렬 TTS + 자동 스크롤)
 async function processQueue() {
@@ -184,6 +192,8 @@ async function processQueue() {
     statusDiv.innerText = "🎧 계속 듣는 중...";
 
     const chosen = localStorage.getItem("ttsVoice") || "alloy";
+
+    // 🎵 TTS 재생 중 마이크 일시 중단
     (async () => {
       try {
         const res = await fetch("/api/tts", {
@@ -192,9 +202,25 @@ async function processQueue() {
           body: JSON.stringify({ text: replyText, voice: chosen }),
         });
         if (!res.ok) throw new Error("TTS 요청 실패");
+
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
+
+        audio.onplay = () => {
+          try {
+            recognition.stop(); // TTS 시작 시 마이크 꺼줌
+          } catch {}
+        };
+
+        audio.onended = () => {
+          if (!pushToTalkMode) {
+            try {
+              recognition.start(); // 재생 후 다시 듣기 시작
+            } catch {}
+          }
+        };
+
         audio.oncanplaythrough = () =>
           audio.play().catch((err) => console.warn("재생 실패:", err));
       } catch (err) {
@@ -208,7 +234,7 @@ async function processQueue() {
   }
 
   isProcessing = false;
-  setTimeout(processQueue, 15000);
+  if (queue.length > 0) processQueue(); // 자동 재호출 (루프 방지)
 }
 
 // 🔗 GPT API 호출
