@@ -1,8 +1,11 @@
-// 🎤 ChatGPT Voice Assistant (2025-10 안정화 버전)
-// - 모바일 브라우저 음성 끊김/반복 루프 수정
-// - continuous=false + interimResults=false 적용
-// - TTS 재생 중 마이크 일시정지
-// - 중복 이벤트 및 자동 재시작 타이밍 개선
+// 🎤 ChatGPT Voice Assistant (2025-10 안정화 + UX 개선 버전)
+// - 모바일 침묵 시 반복 버튼 문제 해결
+// - overlay 제거 (첫 진입 오버레이 숨김)
+// - 키보드 단축키(P/V) 완전 제거
+// - 상단 버튼 하나로 말하기/정지
+// - continuous=false (문장 단위 인식)
+// - interimResults=false (중간 결과 무시)
+// - TTS 중 자동 마이크 정지 및 재시작
 
 // =========================
 // 🧩 DOM 요소
@@ -11,7 +14,6 @@ const statusDiv = document.getElementById("status");
 const chatDiv = document.getElementById("chat");
 const startBtn = document.getElementById("startBtn");
 const voiceSel = document.getElementById("voiceSelect");
-const overlay = document.getElementById("overlay");
 const fontUpBtn = document.getElementById("fontUp");
 const fontDnBtn = document.getElementById("fontDown");
 
@@ -58,40 +60,26 @@ function saveHistory() {
 // =========================
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 recognition.lang = "ko-KR";
-recognition.continuous = false;     // ✅ 한 문장 단위 인식
+recognition.continuous = false;     // ✅ 문장 단위 인식
 recognition.interimResults = false; // ✅ 중간 결과 무시
 
 let isListening = false;
-let pushToTalkMode = false;
-let holdingPTT = false;
-let queue = [];
 let isProcessing = false;
+let queue = [];
 let lastRecognizedTime = 0;
+let silenceTimer = null;
 
 // =========================
-// 🧠 UI 이벤트
+// 🎧 버튼 클릭으로 듣기 토글
 // =========================
 startBtn.addEventListener("click", () => {
-  if (isListening) recognition.stop();
-  else startListening();
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "]") setScale(scale + 0.05);
-  if (e.key === "[") setScale(scale - 0.05);
-
-  if (e.key.toLowerCase() === "p") {
-    pushToTalkMode = !pushToTalkMode;
-    toast(pushToTalkMode ? "PTT 모드 ON (V를 누르고 말해)" : "PTT 모드 OFF (항상 듣기)");
+  if (isListening) {
+    recognition.stop();
+    statusDiv.innerText = "⏸️ 멈춤";
+    startBtn.textContent = "🎙️ 말하기 시작";
+  } else {
+    startListening();
   }
-
-  if (e.key.toLowerCase() === "v") {
-    if (!isListening) startListening();
-    holdingPTT = true;
-  }
-});
-document.addEventListener("keyup", (e) => {
-  if (e.key.toLowerCase() === "v") holdingPTT = false;
 });
 
 // =========================
@@ -101,7 +89,6 @@ recognition.onstart = () => {
   isListening = true;
   statusDiv.innerText = "🎧 듣는 중...";
   startBtn.textContent = "🛑 듣기 중지";
-  overlay.style.display = "none";
 };
 
 recognition.onend = () => {
@@ -109,23 +96,24 @@ recognition.onend = () => {
   statusDiv.innerText = "⏸️ 멈춤";
   startBtn.textContent = "🎙️ 말하기 시작";
 
+  // 침묵 시 자동 반복 방지 (5초 후에만 재시작)
   const now = Date.now();
-  if (now - lastRecognizedTime < 2000) return; // ✅ 너무 빠른 재시작 방지
-
-  setTimeout(() => {
-    if (!pushToTalkMode && !isProcessing) {
+  if (now - lastRecognizedTime < 2000) return;
+  if (silenceTimer) clearTimeout(silenceTimer);
+  silenceTimer = setTimeout(() => {
+    if (!isProcessing) {
       try {
         recognition.start();
       } catch {}
     }
-  }, 1500);
+  }, 5000);
 };
 
 recognition.onerror = (e) => {
   console.warn("음성 인식 오류:", e.error);
   statusDiv.innerText = "⚠️ 오류 발생. 복구 중...";
   setTimeout(() => {
-    if ((isListening || !pushToTalkMode) && !isProcessing) {
+    if (!isProcessing) {
       try {
         recognition.start();
       } catch {}
@@ -136,7 +124,6 @@ recognition.onerror = (e) => {
 recognition.onresult = (event) => {
   const result = event.results[event.resultIndex];
   if (!result.isFinal) return;
-  if (pushToTalkMode && !holdingPTT) return;
 
   const text = result[0].transcript.trim();
   if (!text) return;
@@ -153,7 +140,6 @@ function startListening() {
   if (isListening || isProcessing) return;
   try {
     recognition.start();
-    overlay.style.display = "none";
   } catch (e) {
     console.warn("음성인식 시작 실패:", e);
   }
@@ -223,7 +209,7 @@ async function processQueue() {
         };
 
         audio.onended = () => {
-          if (!pushToTalkMode) {
+          if (!isProcessing) {
             try { recognition.start(); } catch {}
           }
         };
@@ -268,13 +254,6 @@ async function askGPTWithHistory(msgs) {
 // =========================
 function waitMs(ms) {
   return new Promise((r) => setTimeout(r, ms));
-}
-function toast(msg) {
-  statusDiv.innerText = `💡 ${msg}`;
-  setTimeout(
-    () => (statusDiv.innerText = isListening ? "🎧 듣는 중..." : "⏸️ 멈춤"),
-    1800
-  );
 }
 function escapeHTML(s) {
   return s.replace(/[&<>"']/g, (c) =>
