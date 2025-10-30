@@ -47,9 +47,14 @@ select{
 .status{
   margin:0 0 12px 0; color: var(--muted)
 }
-.chat{
-  background: var(--card); border:1px solid var(--border);
-  border-radius:14px; padding:16px; min-height: 50vh;
+.chat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  height: 60vh;             /* 높이 고정 (화면의 60%) */
+  overflow-y: auto;         /* 내부 스크롤 활성화 */
+  scroll-behavior: smooth;  /* 부드러운 스크롤 */
 }
 .chat p{margin:0 0 12px 0; font-size: 1.15rem}
 .chat p b{color: var(--accent)}

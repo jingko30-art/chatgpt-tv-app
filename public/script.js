@@ -153,6 +153,8 @@ async function processQueue(){
   const userText = queue.shift();
   chatDiv.innerHTML += `<p><b>🗣️ 나:</b> ${escapeHTML(userText)}</p>`;
   statusDiv.innerText = "💬 GPT에게 묻는 중...";
+  chatDiv.innerHTML += `<p><b>🤖 GPT:</b> ${escapeHTML(replyText)}</p>`;
+  chatDiv.scrollTop = chatDiv.scrollHeight;
 
   history.push({ role:"user", content:userText });
   history = history.slice(-MAX_TURNS);
